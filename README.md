@@ -232,6 +232,16 @@ Sibling repositories:
 - `trade-dashboard-web` / `trade-dashboard-desktop` — dashboards
 - `trade-suite` — meta-package tying it all together
 
+## The maths
+
+**What you learn.** Futures have no single price series — each contract dies at expiry — so this engine's core maths is *synthesis*: stitching per-contract bars into continuous series, pricing the cost of carry, and reading the term structure. Plus the contract-spec arithmetic (tick value, P&L) that turns point moves into dollars.
+
+**Why it matters.** A naive concatenation of contract histories shows a fake gap at every roll; backtests on it invent profits at boundaries that never existed. Back-adjustment removes the roll gap while preserving every bar-to-bar return, so momentum, volatility, and drawdown statistics on the continuous series are the statistics of a rolled position — which is what you actually trade.
+
+**The maths.** Continuous construction: at each roll boundary, `adjust="ratio"` multiplies all earlier history by `next_close / front_close` (affine: `P ← a·P`), `"difference"` adds the gap (`P ← P + d`), `"none"` keeps raw gaps; boundaries compose as affine transforms, so mixed ratio/difference rolls stay exact. Roll timing is volume-based (switch when the next contract's volume exceeds the front's — the market's liquidity vote) or calendar-based (`roll_days_before` ahead of expiry). Negative prices are first-class: ratio adjustment falls back to difference at non-positive boundaries (WTI, Apr-2020). Volume and open interest are never adjusted; every bar carries `source_contract` provenance. Cost of carry: fair value `F = S·e^(carry·T)`, implied carry `ln(F/S)/T`, basis `F − S`. Term structure: consecutive contracts form segments with annualized roll yield `(F_far/F_near − 1)·(365/days)`; the curve is `contango` when all segments slope up, `backwardation` when all slope down, else `mixed`. Spec maths: `tick_value = multiplier × tick_size` (ES: $12.50/tick), `pnl = (exit − entry) × multiplier × quantity`.
+
+**Honest limitations.** Expiry calendars use documented *approximate* last-trading dates — verify against the exchange for production use. The yfinance feed publishes only continuous front-month series, so its "per-contract" bars are a front-month proxy, not true stitching input; real `build_continuous` value needs a per-contract feed. Back-adjusted prices are not tradable prices — never read absolute levels off an adjusted series, only returns. Roll yield annualization is a linear approximation, not a compounded rate.
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
